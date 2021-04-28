@@ -56,13 +56,15 @@ def is_valid_file(parser, arg):
     else:
         return arg
 
-
-def activate_target_bootloader_cp2105(bInterface):
+def activate_target_bootloader_cp210x(bInterface):
     '''
+    This implementation should work on CP2105, CP2102N, CP2103, CP2104, and CP2108.
     Assume GPIO0 is nRESET and GPIO1 is the active low bootloader activation
         pin on the target. We just need to assert nRESET, assert bootloader activation,
         then de-assert nRESET and then de-assert bootloader activation. The target
         should then be in the right state to receive a new image.
+
+        bInterface parameter is only used for the CP2105
     '''
     REQ_DIR_OUT = 0x00
     REQ_DIR_IN = 0x80
@@ -81,14 +83,41 @@ def activate_target_bootloader_cp2105(bInterface):
     nRESET_MASK = GPIO0_MASK
     nBOOT_MASK = GPIO1_MASK
 
-    PID = 0xea70 #CP2105
-    VID = 0x10c4 #SiliconLabs
+    CP2102N_CP2103_CP2104_PID = 0xea60
+    CP2105_PID = 0xea70
+    CP2108_PID = 0xea71
 
-    dev = usb.core.find(idVendor=VID, idProduct=PID)
-    if not dev:
-            print("CP2105 was not found :(")
-            exit(1)
-    print("Yeeha! Found CP2105")
+    PIDs = [
+            CP2102N_CP2103_CP2104_PID,
+            CP2105_PID,
+            CP2108_PID
+            ]
+    PIDs_STRINGS = [
+            "CP2102N_CP2103_CP2104",
+            "CP2105",
+            "CP2108"
+    ]
+
+    VID = 0x10c4 # SiliconLabs
+
+    found_flag = 0
+    cp2105_flag = 0
+    # Find the first device with the Silabs VID
+    for dev in usb.core.find(find_all=True, idVendor=VID):
+        if dev.idProduct in PIDs:
+            print("Found device! PID={} ({})".format(hex(dev.idProduct),
+                PIDs_STRINGS[PIDs.index(dev.idProduct)]))
+            found_flag = 1
+            if dev.idProduct == CP2105_PID:
+                cp2105_flag = True
+                if bInterface == None:
+                    print("Error: Need to specify interface for CP2105!")
+                    return 1
+            break
+
+    if found_flag == 0:
+        print("Error: Did not find a device!")
+        return 1
 
     reqType = REQ_DIR_OUT | REQ_TYPE_VND | REQ_RCPT_IFC
 
@@ -97,20 +126,40 @@ def activate_target_bootloader_cp2105(bInterface):
     # Go ahead and drive both GPIOs on the selected interface low
     # First (low) byte is mask, second (high) byte is desired latch state
     latchVal = [(nRESET_MASK | nBOOT_MASK), ~(nRESET_MASK | nBOOT_MASK) & 0xff]
-    print("Resetting! latchVal={}, {}".format(hex(latchVal[0]), hex(latchVal[1])))
-    dev.ctrl_transfer(reqType, bReq_VENDOR_SPECIFIC, wVal_WRITE_LATCH, bInterface, latchVal)
+    #print("Resetting! latchVal={}, {}".format(hex(latchVal[0]), hex(latchVal[1])))
+    if cp2105_flag == True:
+        wIndex = bInterface
+        data = latchVal
+    else:
+        wIndex = latchVal[0] | (latchVal[1] << 8) # Send as int
+        data = None
+    dev.ctrl_transfer(reqType, bReq_VENDOR_SPECIFIC, wVal_WRITE_LATCH, wIndex, data)
     time.sleep(0.03) # wait for 30 ms
 
     # Drive nRESET high but leave gpio activation low
     latchVal = [nRESET_MASK , nRESET_MASK]
-    print("Coming out of reset. latchVal={}, {}".format(hex(latchVal[0]), hex(latchVal[1])))
-    dev.ctrl_transfer(reqType, bReq_VENDOR_SPECIFIC, wVal_WRITE_LATCH, bInterface, latchVal)
+    #print("Coming out of reset. latchVal={}, {}".format(hex(latchVal[0]), hex(latchVal[1])))
+    if cp2105_flag == True:
+        wIndex = bInterface
+        data = latchVal
+    else:
+        wIndex = latchVal[0] | (latchVal[1] << 8) # Send as int
+        data = None
+    dev.ctrl_transfer(reqType, bReq_VENDOR_SPECIFIC, wVal_WRITE_LATCH, wIndex, data)
     time.sleep(0.1) # wait for 100 ms
 
     # Now return gpio activation high
     latchVal = [nBOOT_MASK ,(nBOOT_MASK)]
-    print("Releasing nBOOT, latchVal={}, {}".format(hex(latchVal[0]), hex(latchVal[1])))
-    dev.ctrl_transfer(reqType, bReq_VENDOR_SPECIFIC, wVal_WRITE_LATCH, bInterface, latchVal)
+    #print("Releasing nBOOT, latchVal={}, {}".format(hex(latchVal[0]), hex(latchVal[1])))
+    if cp2105_flag == True:
+        wIndex = bInterface
+        data = latchVal
+    else:
+        wIndex = latchVal[0] | (latchVal[1] << 8) # Send as int
+        data = None
+    dev.ctrl_transfer(reqType, bReq_VENDOR_SPECIFIC, wVal_WRITE_LATCH, wIndex, data)
+
+    return 0
 
 
 def flash(port, interface, file):
@@ -125,7 +174,9 @@ def flash(port, interface, file):
     print('Restarting NCP into Bootloader mode...')
 
     # Reboot target, asserting bootloader activation
-    activate_target_bootloader_cp2105(interface)
+    if activate_target_bootloader_cp210x(interface) == 1:
+        # Error occurred
+        exit(1)
 
     # Default port settings
     BAUD = 115200;
@@ -189,9 +240,9 @@ parser = argparse.ArgumentParser(description='')
 subparsers = parser.add_subparsers(help='flash, scan')
 parser_flash = subparsers.add_parser('flash', help='Flashes a NCP with a new application packaged in an GBL file.')
 parser_flash.add_argument('-p','--port', type=str, required=True,
-                    help='Serial port for NCP')
-parser_flash.add_argument('-i','--interface', type=int, required=True,
-                    help='USB interface for NCP (0 = ECI, 1 = SCI)')
+                    help='Serial port for device')
+parser_flash.add_argument('-i','--interface', type=int, required=False,
+                    help='USB interface for CP2105 (0 = ECI, 1 = SCI)')
 parser_flash.add_argument('-f', '--file', type=lambda x: is_valid_file(parser, x), required=True,
                     help='GBL file to upload to NCP')
 parser_flash.set_defaults(which='flash')

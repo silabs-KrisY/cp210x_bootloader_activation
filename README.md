@@ -7,8 +7,6 @@ GPIO activation of the gecko bootloader is straightforward:
 2. Make sure the bootloader activation pin is asserted when de-asserting nRESET. In this case, we are making the bootloader activation pin active low (nBOOT), so this means making sure nBOOT is low when nRESET transitions from low to high.
 3. De-assert the bootloader activation pin. Note that this pin can be re-used for a different purpose in the application.
 
-NOTE that only the CP2105 is currently supported, but support for the CP2102N will be added soon.
-
 ## SW Prerequisites
 
 1. Python 3.x.
@@ -18,16 +16,16 @@ NOTE that only the CP2105 is currently supported, but support for the CP2102N wi
 5. A GBL upgrade file for your target device
 
 ## HW Prerequisites
-1. CP2105
+1. CP2105 or CP2102N (designed to work with other CP210x also, but only tested with these)
 2. EFR32/EFM32 with xmodem gecko bootloader flashed
-3. Connect GPIO.0 of one of the CP2105 ports to nRESET. Note that it's difficult to connect to the target nRESET pin when using a radio board connected to the WSTK. For this reason, I recommend using the BRD8016A that comes with the [EXP4320A WGM110 Wi-Fi Expansion Kit](https://www.silabs.com/documents/public/user-guides/ug291-exp4320a-user-guide.pdf). You can install a radio board on this board and access pins via the 40 pin header (not installed by default). See below for an example pinout using BRD4158A as the target.
+3. Connect GPIO.0 of the CP210x ports to nRESET. Note that it's difficult to connect to the target nRESET pin when using a radio board connected to the WSTK. For this reason, I recommend using the BRD8016A that comes with the [EXP4320A WGM110 Wi-Fi Expansion Kit](https://www.silabs.com/documents/public/user-guides/ug291-exp4320a-user-guide.pdf). You can install a radio board on this board and access pins via the 40 pin header (not installed by default). See below for an example pinout using BRD4158A as the target.
 4. Connect GPIO.1 to a pin configured in the gecko bootloader as an active low bootloader activation pin (which I am calling 'nBOOT'). Note that it's
-5. Connect the RX pin of the CP2105 port to the TX pin of the target device.
-6. Connect the TX pin of the CP2105 port to the RX pin of the target device.
+5. Connect the RX pin of the CP210x port to the TX pin of the target device.
+6. Connect the TX pin of the CP210x port to the RX pin of the target device.
 
-Here's an example schematic showing the recommended connections.
+Here's an example schematic showing a CP210x with the recommended connections.
 
-![schematic showing CP2105 with recommended bootloader activation connections](images/cp210x_bootloader_activation_hw_block_diagram.png)
+![schematic showing CP210x with recommended bootloader activation connections](images/cp210x_bootloader_activation_hw_block_diagram.png)
 
 Note that the resistors are recommended for a robust production design but not needed to run it as a demo. Also note that HW flow control is not really needed for reliable xmodem transfer, since xmodem implements its own flow control protocol. However, HW flow control is always recommended when using UARTs for Silicon Labs NCP (Network Co-processor) interfaces.
 
@@ -70,6 +68,7 @@ $ sudo udevadm trigger
 ```
 $ python3 cp210x_xmodem_activation.py flash -p /dev/ttyUSB0 -i 0 -f soc_empty.gbl
 Restarting NCP into Bootloader mode...
+Found device! PID=0xea70 (CP2105)
 BL version:Gecko Bootloader v1.12.00
 
 Successfully restarted into bootloader mode! Starting upload of NCP image...
@@ -81,6 +80,19 @@ Rebooting NCP...
 ```
 $ python3 cp210x_xmodem_activation.py flash -p /dev/ttyUSB1 -i 1 -f soc_empty.gbl
 Restarting NCP into Bootloader mode...
+Found device! PID=0xea70 (CP2105)
+BL version:Gecko Bootloader v1.12.00
+
+Successfully restarted into bootloader mode! Starting upload of NCP image...
+Finished!
+Rebooting NCP...
+```
+
+5. To update the device on a CP2102N port (COM port /dev/ttyUSB0):
+```
+$ python3 cp210x_xmodem_activation.py flash -p /dev/ttyUSB0 -f soc_empty.gbl
+Restarting NCP into Bootloader mode...
+Found device! PID=0xea60 (CP2102N_CP2103_CP2104)
 BL version:Gecko Bootloader v1.12.00
 
 Successfully restarted into bootloader mode! Starting upload of NCP image...
