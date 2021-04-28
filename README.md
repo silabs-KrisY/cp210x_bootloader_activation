@@ -2,6 +2,8 @@
 
 This repo provides information on using the GPIO of a CP210x usb-to-serial converter to activate the gecko bootloader on a Silicon Labs EFR32. Bootloader activation is useful as a way to always be able to upgrade the firmware on a device, regardless of the state of the application firmware. This avoids the possibility of "bricking" the device. This is normally done via direct GPIO access from a host processor to the device, but when the device is being accessed serially behind a CP210x usb-to-serial converter, the direct GPIO access to the host is usually not present. But the CP210x have GPIOs that are accessible via USB, and these can be used to drive the pins on the target device to activate the bootloader.
 
+NOTE that only the CP2105 is supported, but support for the CP2102N will be added soon.
+
 ## SW Prerequisites
 
 1. Python 3.x.
@@ -49,8 +51,7 @@ $ pip3 install pyusb --user
 $ pip3 install xmodem --user
 ```
 
-3. Note that by default, the "pi" user doesn't have direct access to USB devices. We can provide the "pi" user with access to CP210x devices
-by adding the following line to the beginning of /etc/udev/rules.d/99-com.rules:
+3. Note that by default, all users don't have direct access to USB devices. We can provide all users with access to CP210x devices by adding the following line to the beginning of /etc/udev/rules.d/99-com.rules:
 ```
 SUBSYSTEM=="usb",ATTRS{idVendor}=="10c4",MODE="0666"
 ```
@@ -60,7 +61,7 @@ $ sudo udevadm control --reload-rules
 $ sudo udevadm trigger
 ```
 
-4. To update the device on the SCI port (COM port /dev/ttyUSB0, USB interface \#0):
+4. To update the device on the CP2105 SCI port (COM port /dev/ttyUSB0, USB interface \#0):
 ```
 $ python3 cp210x_xmodem_activation.py flash -p /dev/ttyUSB0 -i 0 -f soc_empty.gbl
 Restarting NCP into Bootloader mode...
@@ -71,7 +72,7 @@ Finished!
 Rebooting NCP...
 ```
 
-5. To update the device on the ECI port (COM port /dev/ttyUSB1, USB interface \#1):
+5. To update the device on the CP2105 ECI port (COM port /dev/ttyUSB1, USB interface \#1):
 ```
 $ python3 cp210x_xmodem_activation.py flash -p /dev/ttyUSB1 -i 1 -f soc_empty.gbl
 Restarting NCP into Bootloader mode...
