@@ -125,8 +125,7 @@ def flash(port, interface, file):
     print('Restarting NCP into Bootloader mode...')
 
     # Reboot target, asserting bootloader activation
-    #activate_target_bootloader_cp2105(interface)
-
+    activate_target_bootloader_cp2105(interface)
 
     # Default port settings
     BAUD = 115200;
