@@ -2,7 +2,12 @@
 
 This repo provides information on using the GPIO of a CP210x usb-to-serial converter to activate the gecko bootloader on a Silicon Labs EFR32. Bootloader activation is useful as a way to always be able to upgrade the firmware on a device, regardless of the state of the application firmware. This avoids the possibility of "bricking" the device. This is normally done via direct GPIO access from a host processor to the device, but when the device is being accessed serially behind a CP210x usb-to-serial converter, the direct GPIO access to the host is usually not present. But the CP210x have GPIOs that are accessible via USB, and these can be used to drive the pins on the target device to activate the bootloader.
 
-NOTE that only the CP2105 is supported, but support for the CP2102N will be added soon.
+GPIO activation of the gecko bootloader is straightforward:
+1. Assert reset (drive nRESET low).
+2. Make sure the bootloader activation pin is asserted when de-asserting nRESET. In this case, we are making the bootloader activation pin active low (nBOOT), so this means making sure nBOOT is low when nRESET transitions from low to high.
+3. De-assert the bootloader activation pin. Note that this pin can be re-used for a different purpose in the application.
+
+NOTE that only the CP2105 is currently supported, but support for the CP2102N will be added soon.
 
 ## SW Prerequisites
 
@@ -28,12 +33,12 @@ Note that the resistors are recommended for a robust production design but not n
 
 Here's my pinout using a BRD4158A installed on a BRD8016A:
 
-| EFR32xG13 Pin | Function                          | BRD8016A 40-pin Header Pin  |
-| ------------- | --------------------------------- | --------------------------  |
-| PF6           | Bootloader Entry (active low)     | 7                           |
-| nRESET        | Active low reset                  | 16                          |
-| PA3           | Target RX                         | 11                          |
-| PA2           | Target TX                         | 36                          |
+| EFR32xG13 Pin | Function                      | BRD8016A 40-pin Header | CP210x Pin |
+| ------------- | ----------------------------- | ---------------------- | ---------- |
+| PF6           | Bootloader Entry (active low) | 7                      | GPIO.1     |
+| nRESET        | Active low reset              | 16                     | GPIO.0     |
+| PA3           | Target RX                     | 11                     | TX         |
+| PA2           | Target TX                     | 36                     | RX         |
 
 ## Installing and Running on Raspberry Pi
 
