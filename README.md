@@ -100,6 +100,17 @@ Finished!
 Rebooting NCP...
 ```
 
+6. To scan for CP210x ports:
+```
+$ python3 cp210x_xmodem_activation.py scan
+/dev/ttyUSB1
+   Desc: CP2105 Dual USB to UART Bridge Controller - Standard Com Port
+   HWID: USB VID:PID=10C4:EA70 SER=003334E8 LOCATION=1-1.4:1.1
+/dev/ttyUSB0
+   Desc: CP2105 Dual USB to UART Bridge Controller - Enhanced Com Port
+   HWID: USB VID:PID=10C4:EA70 SER=003334E8 LOCATION=1-1.4:1.0
+```
+
 ## References
 [AN571 - CP210x Virtual COM Port Interface](https://www.silabs.com/documents/public/application-notes/AN571.pdf)
 

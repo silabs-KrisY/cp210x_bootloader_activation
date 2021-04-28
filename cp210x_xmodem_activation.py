@@ -47,6 +47,7 @@ from xmodem import XMODEM
 import sys
 import argparse
 import os
+import serial.tools.list_ports as prtlst
 
 BOOTLOADER_INIT_TIMEOUT = 10
 
@@ -236,6 +237,17 @@ def flash(port, interface, file):
     ser.write(b'2')
     ser.close()
 
+def scan():
+    '''
+    Scan for Silabs comports
+    '''
+
+    for c in prtlst.comports():
+        if c.vid == 0x10c4:
+            print("{}".format(c.device))
+            print("   Desc: {}".format(c.description))
+            print("   HWID: {}".format(c.hwid))
+
 parser = argparse.ArgumentParser(description='')
 subparsers = parser.add_subparsers(help='flash, scan')
 parser_flash = subparsers.add_parser('flash', help='Flashes a NCP with a new application packaged in an GBL file.')
@@ -252,7 +264,6 @@ parser_scan.set_defaults(which='scan')
 
 args = parser.parse_args()
 if args.which == 'scan':
-    #scan()
-    print("todo: scan")
+    scan()
 else:
     flash(args.port,args.interface,args.file)
