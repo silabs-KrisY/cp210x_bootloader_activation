@@ -19,7 +19,7 @@ GPIO activation of the gecko bootloader is straightforward:
 1. CP2105 or CP2102N (designed to work with other CP210x also, but only tested with these)
 2. EFR32/EFM32 with xmodem gecko bootloader flashed
 3. Connect GPIO.0 of the CP210x ports to nRESET. Note that it's difficult to connect to the target nRESET pin when using a radio board connected to the WSTK. For this reason, I recommend using the BRD8016A that comes with the [EXP4320A WGM110 Wi-Fi Expansion Kit](https://www.silabs.com/documents/public/user-guides/ug291-exp4320a-user-guide.pdf). You can install a radio board on this board and access pins via the 40 pin header (not installed by default). See below for an example pinout using BRD4158A as the target.
-4. Connect GPIO.1 to a pin configured in the gecko bootloader as an active low bootloader activation pin (which I am calling 'nBOOT'). Note that it's
+4. Connect GPIO.1 to a pin configured in the gecko bootloader as an active low bootloader activation pin (which I am calling 'nBOOT').
 5. Connect the RX pin of the CP210x port to the TX pin of the target device.
 6. Connect the TX pin of the CP210x port to the RX pin of the target device.
 
@@ -27,7 +27,7 @@ Here's an example schematic showing a CP210x with the recommended connections.
 
 ![schematic showing CP210x with recommended bootloader activation connections](images/cp210x_bootloader_activation_hw_block_diagram.png)
 
-Note that the resistors are recommended for a robust production design but not needed to run it as a demo. Also note that HW flow control is not really needed for reliable xmodem transfer, since xmodem implements its own flow control protocol. However, HW flow control is always recommended when using UARTs for Silicon Labs NCP (Network Co-processor) interfaces.
+Note that the resistors are recommended for a robust production design but not needed to run it as a demo as the CP2105 has weak internal pullups on its GPIO pins. Also note that HW flow control is not really needed for reliable xmodem transfer, since xmodem implements its own flow control protocol. However, HW flow control is always recommended when using UARTs for Silicon Labs NCP (Network Co-processor) interfaces.
 
 Here's my pinout using a BRD4158A installed on a BRD8016A:
 
