@@ -1,20 +1,14 @@
 #!/bin/sh
 
-# reset_target_gpiod.sh <btl_act_pin> <nrst_pin> -btl_act
+# reset_target_gpiod.sh <gpio device file> <btl_act_pin> <nrst_pin> -btl_act
 #
 # Reset Silicon Labs target with or without forcing bootloader activation pin
 # low
-# Example forcing btl_act low with btl_act_pin=0, nrst_pin=1:
-#  ./reset_target_gpiod.sh 0 1 -btl_act
+# Example forcing btl_act low with gpiochip3, btl_act_pin=1, nrst_pin=0:
+#  ./reset_target_gpiod.sh gpiochip3 1 0 -btl_act
 # Omit -btl_act argument for simple target reset without GPIO activation
-# NOTE1: GPIO activation assumes gecko bootloader bootloader activation
+# NOTE: GPIO activation assumes gecko bootloader bootloader activation
 # polarity is active low
-#
-# NOTE2: Some docs claim that the GPIO settings from "gpioset" are not guaranteed
-# to be persistent once gpioset exits. This script relies on that persistence,
-# particularly to keep the bootloader activation pin low while toggling nRST.
-# Please verify proper operation on the target system.
-#
 # This software is EXAMPLE SOFTWARE and is being provided on an AS-IS basis.
 
 # # # # # # # # # # # # # # # # # # # # #
@@ -31,19 +25,19 @@
 # This notice may not be removed or altered from any source distribution.
 # # # # # # # # # # # # # # # # # # # # #
 
-if [ "$#" -lt 2 ]; then
+if [ "$#" -lt 3 ]; then
   echo "Usage:"
   echo "\tReset target with bootloader activation: "
-  echo "\t\t$0 <btl_act_pin> <nrst_pin> -btl_act"
+  echo "\t\t$0 <gpio device file> <btl_act_pin> <nrst_pin> -btl_act"
   echo "\tReset target without bootloader activation: "
-  echo "\t\t$0 <btl_act_pin> <nrst_pin>"
+  echo "\t\t$0 <gpio device file> <btl_act_pin> <nrst_pin>"
   exit 1
 fi
-gpiod_dev=/dev/gpiochip3
-btl_act_pin=$1
-nrst_pin=$2
+gpiod_dev=$1
+btl_act_pin=$2
+nrst_pin=$3
 
-if [ "$3" = "-btl_act" ]; then
+if [ "$4" = "-btl_act" ]; then
   echo "Invoking bootloader with btl_act low"
   #Force btl_act low
   gpioset $gpiod_dev $btl_act_pin=0
@@ -55,7 +49,7 @@ fi
 gpioset --mode=time --usec=1000 $gpiod_dev $nrst_pin=0
 gpioset $gpiod_dev $nrst_pin=1
 
-if [ "$3" = "-btl_act" ]; then
+if [ "$4" = "-btl_act" ]; then
   #Sleep for a short time then de-assert btl_act
   #wait for 30ms
   sleep 0.03

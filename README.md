@@ -38,7 +38,7 @@ Here's my pinout using a BRD4158A installed on a BRD8016A:
 | PA3           | Target RX                     | 11                     | TX         |
 | PA2           | Target TX                     | 36                     | RX         |
 
-## Installing and Running on Raspberry Pi
+## Installing and Running on Raspberry Pi Using Python
 
 1. Clone the repo.
 
@@ -109,6 +109,32 @@ $ python3 cp210x_xmodem_activation.py scan
 /dev/ttyUSB0
    Desc: CP2105 Dual USB to UART Bridge Controller - Enhanced Com Port
    HWID: USB VID:PID=10C4:EA70 SER=003334E8 LOCATION=1-1.4:1.0
+```
+## Installing and Running on Raspberry Pi Using gpiod
+
+The [Silicon Labs VCP driver for the CP210x](https://www.silabs.com/documents/login/software/Linux_3.x.x_4.x.x_VCP_Driver_Source.zip) and recent versions of the [Linux community driver for CP210x](https://github.com/torvalds/linux/blob/master/drivers/usb/serial/cp210x.c) (kernel version 5.14 and later) provide direct access to the CP210x GPIO pins via [gpiod](https://git.kernel.org/pub/scm/libs/libgpiod/libgpiod.git/tree/README).
+
+1. Make sure you are using a recent version of Raspbian. For this example, I used Raspbian 11 "Bullseye" which has a kernel version of 5.15:
+```
+$ cat /proc/version
+Linux version 5.15.32-v7+ (dom@buildbot) (arm-linux-gnueabihf-gcc-8 (Ubuntu/Linaro 8.4.0-3ubuntu1) 8.4.0, GNU ld (GNU Binutils for Ubuntu) 2.34) #1538 SMP Thu Mar 31 19:38:48 BST 2022
+```
+2. Install gpiod via "sudo apt install gpiod". I recommend rebooting after install.
+3. Connect your CP210x to the Raspberry Pi USB port and check for the cp210x GPIO support. The following example is for a CP2108 which has 16 gpios:
+```
+$ gpiodetect
+gpiochip0 [pinctrl-bcm2835] (54 lines)
+gpiochip1 [brcmvirt-gpio] (2 lines)
+gpiochip2 [raspberrypi-exp-gpio] (8 lines)
+gpiochip3 [cp210x] (16 lines)
+```
+4. Run the [reset_target_gpiod.sh](reset_target_gpiod.sh) example script to activate bootloader mode on the target using the CP210x GPIOs. The first argument in the script is the "gpiochip" device corresponding to the CP210x, the second argument is the CP210x number of the bootloader activation pin, the third argument is the CP210x GPIO number of the nRESET pin, and the final (optional) argument is "-btl_act" which is required for bootloader activation. For example, taking the suggested pins from this README (GPIO.0 = nRST, GPIO.1=bootloader activation), and taking the output of gpiodetect ("gpiochip3" here):
+```
+$ ./reset_target_gpiod.sh gpiochip3 1 0 -btl_act
+```
+5. Now the target should be in bootloader mode, so you can just run the [xmodem_bootload.sh](xmodem_bootload.sh) example script to upload the GBL file via xmodem transfer (115200, 8N1, no flow control):
+```
+$ ./xmodem_bootload.sh /dev/ttyUSB0 newapplication.gbl
 ```
 
 ## References
