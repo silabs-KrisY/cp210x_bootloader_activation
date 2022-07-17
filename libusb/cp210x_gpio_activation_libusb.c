@@ -104,7 +104,9 @@ int main(void)
             fprintf(stderr, "failed to get device descriptor");
             continue;
         } else {
+#ifdef DEBUG          
           printf("idvendor=0x%2x, idProduct=0x%2x\r\n", desc.idVendor, desc.idProduct);
+#endif
           if ((desc.idVendor == SILABS_VID) && ((desc.idProduct == CP2102N_CP2103_CP2104_PID) || \
            (desc.idProduct == CP2105_PID) || (desc.idProduct == CP2108_PID))) {
              printf("CP210x detected!\r\n");
