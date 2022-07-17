@@ -26,6 +26,7 @@ freely, subject to the following restrictions:
 #include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
+#include <getopt.h>
 
 #define REQ_DIR_OUT 0x00
 #define REQ_DIR_IN 0x80
@@ -52,9 +53,22 @@ freely, subject to the following restrictions:
 #define CP2108_PID 0xea71
 #define SILABS_VID 0x10c4
 
+// Optstring argument for getopt.
+#define OPTSTRING      "hbri"
+
+#define RESET_DELAY_US 5000 //5ms
+#define BTLACT_DELAY_US 30000 //30ms
+
+static struct option long_options[] = {
+     {"help",       no_argument,       0,  'h' },
+     {"btlact",     required_argument, 0,  'b' },
+     {"reset",      required_argument, 0,  'r' },
+     {"interface",  required_argument, 0,  'i' },
+     {0,           0,                 0,  0  }};
+
 libusb_context* context = NULL;
 
-int main(void)
+int main(int argc, char *argv[])
 {
     libusb_device **device_list;
     libusb_device *dev;
@@ -66,6 +80,10 @@ int main(void)
     int i=0;
     ssize_t dev_list_count;
     uint16_t wIndex;
+    int opt = 0;
+    uint16_t btlact_pin_mask=0; //active low btl act pin mask
+    uint16_t reset_pin_mask=0; //active low reset pin mask
+    uint8_t interface_number=0;
 
     // Use these for CP2105
     struct cp210x_gpio_write8 {
@@ -79,12 +97,66 @@ int main(void)
     	uint16_t state;
     } gpiobuf16;
 
-    retval = libusb_init(&context);
-    if (retval< 0) {
-      printf("libusb_init failure %s\n", libusb_error_name(retval));
-      libusb_exit(NULL);
-      exit(1);
+    // Process command line options.
+  while ((opt = getopt_long(argc, argv, OPTSTRING, long_options, NULL)) != -1) {
+    switch (opt) {
+      case 'h':
+        printf("add help message here!\n");
+      break;
+
+      case 'b':
+        //btlact pin mask
+        btlact_pin_mask = atoi(optarg);
+        break;
+
+      case 'r':
+        //btlact pin mask
+        reset_pin_mask = atoi(optarg);
+        break;
+
+      case 'i':
+        //interface number (needed for CP2105, ignored for others)
+        interface_number = atoi(optarg);
+        break;
+
+      default:
+        printf("hit default case\n");
+      break;
     }
+  }
+
+  // Validate inputs
+  if (reset_pin_mask == 0) {
+    printf("Error - reset pin mask must be non-zero!\n");
+    exit(1);
+  } else if ((reset_pin_mask & (reset_pin_mask - 1)) != 0) {
+    // check to make sure only one bit is set
+    printf("ERROR: reset pin mask must only have one bit set, value = 0x%2x\n",
+          reset_pin_mask);
+    exit(1);
+  }
+
+  // Validate inputs
+  if (reset_pin_mask == 0) {
+    // This is just a reset, so we'll allow this case
+    printf("Toggling reset without btl activation\n");
+  } else if ((btlact_pin_mask & (btlact_pin_mask - 1)) != 0) {
+    // check to make sure only one bit is set
+    printf("ERROR: btlact pin mask must only have one bit set, value = 0x%2x\n",
+          btlact_pin_mask);
+    exit(1);
+  }
+
+  if (reset_pin_mask == btlact_pin_mask) {
+    printf("ERROR: reset pin mask and btlact pin mask cannot be the same value!\n");
+    exit(1);
+  }
+  retval = libusb_init(&context);
+  if (retval< 0) {
+    printf("libusb_init failure %s\n", libusb_error_name(retval));
+    libusb_exit(NULL);
+    exit(1);
+  }
 
 #ifdef DEBUG
     // Enable verbose debug logging
@@ -92,28 +164,43 @@ int main(void)
 #endif
     dev_list_count = libusb_get_device_list(NULL, &device_list);
     if (dev_list_count < 0){
-        printf("libusb_init failure %s\n", libusb_error_name((int)dev_list_count));
+        printf("ERROR: libusb_init failure %s\n", libusb_error_name((int)dev_list_count));
         libusb_exit(NULL);
         exit(1);
     }
     // Search through the list of USB devices to find the first CP210x
-    while ((dev = device_list[i++]) != NULL) {
+    while (((dev = device_list[i++]) != NULL) && found_flag == 0) {
         dev_handle = NULL;
         retval = libusb_get_device_descriptor(dev, &desc);
         if (retval< 0) {
-            fprintf(stderr, "failed to get device descriptor");
+            printf("failed to get device descriptor\n");
             continue;
         } else {
-#ifdef DEBUG          
+#ifdef DEBUG
           printf("idvendor=0x%2x, idProduct=0x%2x\r\n", desc.idVendor, desc.idProduct);
 #endif
-          if ((desc.idVendor == SILABS_VID) && ((desc.idProduct == CP2102N_CP2103_CP2104_PID) || \
-           (desc.idProduct == CP2105_PID) || (desc.idProduct == CP2108_PID))) {
-             printf("CP210x detected!\r\n");
-             found_flag = 1;
-             break;
+          if (desc.idVendor == SILABS_VID) {
+            switch (desc.idProduct) {
+              case CP2105_PID:
+              printf("CP2105 detected, using interface %d.\n", interface_number);
+              found_flag = 1;
+              break;
+
+              case CP2108_PID:
+              printf("CP2108 detected.\n");
+              found_flag = 1;
+              break;
+
+              case CP2102N_CP2103_CP2104_PID:
+              printf("CP2102, CP2103, or CP2104 detected.\n");
+              found_flag = 1;
+              break;
+
+            default:
+              break;
+            }
           }
-        }
+        } //end if
       } //end while
 
     if (found_flag == 0) {
@@ -122,12 +209,13 @@ int main(void)
       libusb_exit(NULL);
       exit(1);
     }
+
     // Open the device and claim the interface
     retval = libusb_open(dev, &dev_handle);
     if (retval== LIBUSB_SUCCESS) {
       printf("libusb_open success!\n");
     } else {
-      printf("llibusb_open fail, %s!\n", libusb_error_name(retval));
+      printf("ERROR: llibusb_open fail, %s!\n", libusb_error_name(retval));
       exit(1);
     }
 
@@ -139,10 +227,6 @@ int main(void)
     retval = libusb_get_active_config_descriptor(dev, &cfg_desc);
     assert(retval == LIBUSB_SUCCESS);
 
-    // Choose the first interface
-    uint8_t interface_number =
-        cfg_desc->interface[0].altsetting[0].bInterfaceNumber;
-
     retval = libusb_claim_interface(dev_handle, interface_number);
     assert(retval== LIBUSB_SUCCESS);
 
@@ -151,8 +235,8 @@ int main(void)
     switch (desc.idProduct) {
 
       case CP2108_PID:
-        // write all CP2108 GPIO low
-        gpiobuf16.mask = 0xffff;
+        // Write the reset pin low, also write the btlact pin low if set
+        gpiobuf16.mask = reset_pin_mask | btlact_pin_mask;
         gpiobuf16.state = 0x0000;
         retval = libusb_control_transfer(dev_handle,
                                         REQTYPE_HOST_TO_INTERFACE,
@@ -163,8 +247,10 @@ int main(void)
                                         sizeof(gpiobuf16),
                                         0);
         assert(retval>=0);
-        sleep(5);
+        usleep(RESET_DELAY_US);
 
+        // Write the reset high again, but don't touch the btlact pin
+        gpiobuf16.mask = reset_pin_mask;
         gpiobuf16.state = 0xffff; // Write all CP2108 GPIO high
         retval = libusb_control_transfer(dev_handle,
                                         REQTYPE_HOST_TO_INTERFACE,
@@ -175,11 +261,39 @@ int main(void)
                                         sizeof(gpiobuf16),
                                         0);
         assert(retval>=0);
+
+        if (btlact_pin_mask != 0) {
+          usleep(BTLACT_DELAY_US);
+          // Write btlact high if its being used
+          gpiobuf16.mask = btlact_pin_mask;
+          gpiobuf16.state = 0xffff; // Write all CP2108 GPIO high
+          retval = libusb_control_transfer(dev_handle,
+                                          REQTYPE_HOST_TO_INTERFACE,
+                                          bReq_VENDOR_SPECIFIC,
+                                          wVal_WRITE_LATCH,
+                                          interface_number,
+                                          (uint8_t *)&gpiobuf16,
+                                          sizeof(gpiobuf16),
+                                          0);
+          assert(retval>=0);
+        }
         break;
 
       case CP2105_PID:
-        // write all CP2105 GPIO low (but only on the specified interface)
-        gpiobuf8.mask = 0xff;
+        // NOTE that the interface number is important for the CP2105
+        // do a bit of bound checking here
+        if (reset_pin_mask > 0xff) {
+          printf("ERROR: reset pin mask 0x%2x out of range of 8-bit value for CP2105\n",
+                  reset_pin_mask);
+          exit(1);
+        }
+        if (btlact_pin_mask > 0xff) {
+          printf("ERROR: btlact pin mask 0x%2x out of range of 8-bit value for CP2105\n",
+                  btlact_pin_mask);
+          exit(1);
+        }
+        // Write the reset pin low, also write the btlact pin low if set
+        gpiobuf8.mask = reset_pin_mask | btlact_pin_mask;
         gpiobuf8.state = 0x00;
 
         retval = libusb_control_transfer(dev_handle,
@@ -190,9 +304,10 @@ int main(void)
                                           (uint8_t *) &gpiobuf8,
                                           sizeof(gpiobuf8), 0);
         assert(retval>=0);
-        sleep(5);
+        usleep(RESET_DELAY_US);
 
-        // Write all CP2105 GPIO high (but only on the specified interface)
+        // Write the reset high again, but don't touch the btlact pin
+        gpiobuf8.mask = reset_pin_mask;
         gpiobuf8.state = 0xff;
         retval = libusb_control_transfer(dev_handle,
                                         REQTYPE_HOST_TO_INTERFACE,
@@ -203,11 +318,27 @@ int main(void)
                                         sizeof(gpiobuf8),
                                         0);
         assert(retval>=0);
+
+        if (btlact_pin_mask != 0) {
+          usleep(BTLACT_DELAY_US);
+          // Write btlact high if its being used
+          gpiobuf8.mask = btlact_pin_mask;
+          gpiobuf8.state = 0xff;
+          retval = libusb_control_transfer(dev_handle,
+                                          REQTYPE_HOST_TO_INTERFACE,
+                                          bReq_VENDOR_SPECIFIC,
+                                          wVal_WRITE_LATCH,
+                                          interface_number,
+                                          (uint8_t *)&gpiobuf8,
+                                          sizeof(gpiobuf8),
+                                          0);
+          assert(retval>=0);
+        }
         break;
 
       case CP2102N_CP2103_CP2104_PID:
-        // write all CP210x GPIO low
-        wIndex = 0x00FF;
+        // Write the reset pin low, also write the btlact pin low if set
+        wIndex = (0x00 << 8) | btlact_pin_mask | reset_pin_mask;
         retval = libusb_control_transfer(dev_handle,
                                           REQTYPE_HOST_TO_DEVICE,
                                           bReq_VENDOR_SPECIFIC,
@@ -217,9 +348,10 @@ int main(void)
                                           0,
                                           0);
         assert(retval>=0);
-        sleep(5);
+        usleep(RESET_DELAY_US);
 
-        wIndex = 0xffff; // Write all CP210x GPIO high
+        // Write the reset high again, but don't touch the btlact pin
+        wIndex = (0xff << 8) | reset_pin_mask;
         retval = libusb_control_transfer(dev_handle,
                                         REQTYPE_HOST_TO_DEVICE,
                                         bReq_VENDOR_SPECIFIC,
@@ -229,6 +361,20 @@ int main(void)
                                         0,
                                         0);
         assert(retval>=0);
+        if (btlact_pin_mask != 0) {
+          usleep(BTLACT_DELAY_US);
+          // Write btlact high if its being used
+          wIndex = (0xff << 8) | btlact_pin_mask;
+          retval = libusb_control_transfer(dev_handle,
+                                          REQTYPE_HOST_TO_DEVICE,
+                                          bReq_VENDOR_SPECIFIC,
+                                          wVal_WRITE_LATCH,
+                                          wIndex,
+                                          NULL,
+                                          0,
+                                          0);
+          assert(retval>=0);
+        }
         break;
 
       default:
