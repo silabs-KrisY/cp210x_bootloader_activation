@@ -1,18 +1,17 @@
-PROJECTNAME ?= cp210x_gpio_activation_libusb
+TARGET ?= cp210x_gpio_activation_libusb
 CC = gcc
 LD = ld
 C_SRC = cp210x_gpio_activation_libusb.c
 CFLAGS=-g -Wall -Wextra $(shell pkg-config --libs --cflags libusb-1.0)
-#LDFLAGS=$(shell pkg-config --libs libusb-1.0)
+EXEDIR = exe
 
-cp210x_gpio_activation_libusb: $(C_SRC)
-	$(CC) $(DEBUG) -o $@ $^ $(CFLAGS)
+$(EXEDIR)/$(TARGET): $(C_SRC)
+	mkdir -p $(EXEDIR)
+	$(CC) -o $@ $^ $(CFLAGS)
 
 debug: DEBUG= -DDEBUG
 
-debug: cp210x_gpio_activation_libusb
+debug: $(EXEDIR)/$(TARGET)
 
-clean: 
-	rm -f cp210x_gpio_activation_libusb.o
-	rm -f cp210x_gpio_activation_libusb
-
+clean:
+	rm -f $(EXEDIR)/$(TARGET)
