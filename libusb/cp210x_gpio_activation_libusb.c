@@ -51,7 +51,6 @@ freely, subject to the following restrictions:
 #define CP2105_PID 0xea70
 #define CP2108_PID 0xea71
 #define SILABS_VID 0x10c4
-#define DEBUG
 
 libusb_context* context = NULL;
 
