@@ -167,6 +167,10 @@ int main(int argc, char *argv[])
         printf("ERROR: libusb_init failure %s\n", libusb_error_name((int)dev_list_count));
         libusb_exit(NULL);
         exit(1);
+    } else {
+#ifdef DEBUG
+	printf("Searching through the list of %d devices for CP210x...\n", dev_list_count);
+#endif
     }
     // Search through the list of USB devices to find the first CP210x
     while (((dev = device_list[i++]) != NULL) && found_flag == 0) {

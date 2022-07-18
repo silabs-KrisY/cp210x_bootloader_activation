@@ -7,9 +7,9 @@ EXEDIR = exe
 
 $(EXEDIR)/$(TARGET): $(C_SRC)
 	mkdir -p $(EXEDIR)
-	$(CC) -o $@ $^ $(CFLAGS)
+	$(CC) $(DEBUG) -o $@ $^ $(CFLAGS)
 
-debug: DEBUG= -DDEBUG
+debug: DEBUG = -DDEBUG
 
 debug: $(EXEDIR)/$(TARGET)
 
