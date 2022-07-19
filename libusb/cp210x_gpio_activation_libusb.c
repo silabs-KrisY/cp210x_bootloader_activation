@@ -33,7 +33,6 @@ freely, subject to the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 *********************************************/
 
-
 #include <libusb.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,7 +49,6 @@ freely, subject to the following restrictions:
 #define REQ_RCPT_IFC 0x01
 #define REQ_RCPT_EPT 0x02
 #define REQTYPE_HOST_TO_INTERFACE REQ_DIR_OUT | REQ_TYPE_VND | REQ_RCPT_IFC
-#define REQTYPE_HOST_TO_DEVICE REQ_DIR_OUT | REQ_TYPE_VND | REQ_RCPT_DEV
 #define CP210x_REQ_IFC_ENABLE 0x00
 #define bReq_VENDOR_SPECIFIC 0xFF
 #define wVal_WRITE_LATCH 0x37E1
@@ -113,11 +111,12 @@ int main(int argc, char *argv[])
   while ((opt = getopt_long(argc, argv, OPTSTRING, long_options, NULL)) != -1) {
     switch (opt) {
       case 'h':
+      //TODO
         printf("add help message here!\n");
       break;
 
       case 'b':
-        //btlact pin mask
+        //btlact pin shift
         btlact_pin_shift = atoi(optarg);
         if (btlact_pin_shift > MAX_GPIO_PIN) {
           printf("ERROR: btlact pin must be less than %d, selected %d\n",
@@ -128,7 +127,7 @@ int main(int argc, char *argv[])
         break;
 
       case 'r':
-        //btlact pin mask
+        //btlact pin shift
         reset_pin_shift = atoi(optarg);
         if (reset_pin_shift > MAX_GPIO_PIN) {
           printf("ERROR: reset pin must be less than %d, selected %d\n",
@@ -143,6 +142,7 @@ int main(int argc, char *argv[])
         break;
 
       default:
+      //TODO
         printf("hit default case\n");
       break;
     }
@@ -150,7 +150,9 @@ int main(int argc, char *argv[])
 
   if (btlact_flag == 0) {
     // This is just a reset, so we'll allow this case
-    printf("Toggling reset without bootloader activation\n");
+    printf("Resetting target only (without bootloader activation)\n");
+  } else {
+    printf("Resetting target with bootloader activation\n");
   }
 
   if (reset_pin_shift == btlact_pin_shift) {
@@ -159,7 +161,7 @@ int main(int argc, char *argv[])
   }
   retval = libusb_init(&context);
   if (retval< 0) {
-    printf("libusb_init failure %s\n", libusb_error_name(retval));
+    printf("ERROR: libusb init failure %s\n", libusb_error_name(retval));
     libusb_exit(NULL);
     exit(1);
   }
@@ -170,7 +172,7 @@ int main(int argc, char *argv[])
 #endif
     dev_list_count = libusb_get_device_list(NULL, &device_list);
     if (dev_list_count < 0){
-        printf("ERROR: libusb_init failure %s\n", libusb_error_name((int)dev_list_count));
+        printf("ERROR: cannot get device list: %s\n", libusb_error_name((int)dev_list_count));
         libusb_exit(NULL);
         exit(1);
     } else {
@@ -184,7 +186,7 @@ int main(int argc, char *argv[])
       retval = libusb_get_device_descriptor(dev, &desc);
       assert(retval == LIBUSB_SUCCESS);
 #ifdef DEBUG
-      printf("idvendor=0x%2x, idProduct=0x%2x\r\n", desc.idVendor, desc.idProduct);
+      printf("idvendor=0x%2x, idProduct=0x%2x\n", desc.idVendor, desc.idProduct);
 #endif
       if (desc.idVendor == SILABS_VID) {
         switch (desc.idProduct) {
@@ -215,17 +217,15 @@ int main(int argc, char *argv[])
 
     if (found_flag == 0) {
       // Didn't find any CP210x, exit
-      printf("No CP210x devices found. Exiting\n");
+      printf("ERROR: No CP210x devices found. Exiting\n");
       libusb_exit(NULL);
       exit(1);
     }
 
     // Open the device and claim the interface
     retval = libusb_open(dev, &dev_handle);
-    if (retval== LIBUSB_SUCCESS) {
-      printf("libusb_open success!\n");
-    } else {
-      printf("ERROR: llibusb_open fail, %s!\n", libusb_error_name(retval));
+    if (retval != LIBUSB_SUCCESS) {
+      printf("ERROR: libusb open failed: %s\n", libusb_error_name(retval));
       exit(1);
     }
 
@@ -344,6 +344,7 @@ int main(int argc, char *argv[])
 
       case CP2102N_CP2103_CP2104_PID:
         // Write the reset pin low, also write the btlact pin low if set
+        //TODO: CP2102N_CP2103_CP2104 bound checking
         wIndex = (0x00 << 8) | BTLACT_PIN_MASK | RESET_PIN_MASK;
         retval = libusb_control_transfer(dev_handle,
                                           REQTYPE_HOST_TO_INTERFACE,
@@ -384,12 +385,13 @@ int main(int argc, char *argv[])
         break;
 
       default:
-        printf("Error! desc.idProduct=0x%2x not handled, exiting\n", desc.idProduct);
+        printf("ERROR: desc.idProduct=0x%2x not handled, exiting\n", desc.idProduct);
         exit(1);
         break;
 
     }
 
+    printf("Success!\n");
     retval = libusb_release_interface(dev_handle, interface_number);
     assert(retval== LIBUSB_SUCCESS);
     libusb_close(dev_handle);
