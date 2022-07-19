@@ -346,7 +346,7 @@ int main(int argc, char *argv[])
         // Write the reset pin low, also write the btlact pin low if set
         wIndex = (0x00 << 8) | BTLACT_PIN_MASK | RESET_PIN_MASK;
         retval = libusb_control_transfer(dev_handle,
-                                          REQTYPE_HOST_TO_DEVICE,
+                                          REQTYPE_HOST_TO_INTERFACE,
                                           bReq_VENDOR_SPECIFIC,
                                           wVal_WRITE_LATCH,
                                           wIndex,
