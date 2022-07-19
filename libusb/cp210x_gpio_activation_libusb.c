@@ -43,11 +43,6 @@ freely, subject to the following restrictions:
 #define wVal_WRITE_LATCH 0x37E1
 #define wVAL_READ_LATCH 0x00C2
 
-#define GPIO0_MASK 0x01
-#define GPIO1_MASK 0x02
-#define nRESET_MASK GPIO0_MASK
-#define nBOOT_MASK GPIO1_MASK
-
 #define CP2102N_CP2103_CP2104_PID 0xea60
 #define CP2105_PID 0xea70
 #define CP2108_PID 0xea71
@@ -73,7 +68,6 @@ int main(int argc, char *argv[])
     libusb_device **device_list;
     libusb_device *dev;
     struct libusb_device_descriptor desc;
-    struct libusb_config_descriptor *cfg_desc = NULL;
     libusb_device_handle* dev_handle;
     int retval;
     uint8_t found_flag=0;
@@ -84,6 +78,9 @@ int main(int argc, char *argv[])
     uint16_t btlact_pin_mask=0; //active low btl act pin mask
     uint16_t reset_pin_mask=0; //active low reset pin mask
     uint8_t interface_number=0;
+
+    //dev = (struct libusb_device*)malloc(sizeof(struct libusb_device));
+    //device_list = (struct libusb_device**)malloc(sizeof(struct libusb_device*) * 50);
 
     // Use these for CP2105
     struct cp210x_gpio_write8 {
@@ -173,39 +170,39 @@ int main(int argc, char *argv[])
 #endif
     }
     // Search through the list of USB devices to find the first CP210x
-    while (((dev = device_list[i++]) != NULL) && found_flag == 0) {
-        dev_handle = NULL;
-        retval = libusb_get_device_descriptor(dev, &desc);
-        if (retval< 0) {
-            printf("failed to get device descriptor\n");
-            continue;
-        } else {
+    for (i=0;i<dev_list_count;i++) {
+      dev = device_list[i];
+      retval = libusb_get_device_descriptor(dev, &desc);
+      assert(retval == LIBUSB_SUCCESS);
 #ifdef DEBUG
-          printf("idvendor=0x%2x, idProduct=0x%2x\r\n", desc.idVendor, desc.idProduct);
+      printf("idvendor=0x%2x, idProduct=0x%2x\r\n", desc.idVendor, desc.idProduct);
 #endif
-          if (desc.idVendor == SILABS_VID) {
-            switch (desc.idProduct) {
-              case CP2105_PID:
-              printf("CP2105 detected, using interface %d.\n", interface_number);
-              found_flag = 1;
-              break;
+      if (desc.idVendor == SILABS_VID) {
+        switch (desc.idProduct) {
+          case CP2105_PID:
+          printf("CP2105 detected, using interface %d.\n", interface_number);
+          found_flag = 1;
+          break;
 
-              case CP2108_PID:
-              printf("CP2108 detected.\n");
-              found_flag = 1;
-              break;
+          case CP2108_PID:
+          printf("CP2108 detected.\n");
+          found_flag = 1;
+          break;
 
-              case CP2102N_CP2103_CP2104_PID:
-              printf("CP2102, CP2103, or CP2104 detected.\n");
-              found_flag = 1;
-              break;
+          case CP2102N_CP2103_CP2104_PID:
+          printf("CP2102, CP2103, or CP2104 detected.\n");
+          found_flag = 1;
+          break;
 
-            default:
-              break;
-            }
-          }
-        } //end if
-      } //end while
+        default:
+          break;
+        }
+      }
+      if (found_flag == 1) {
+        //exit for loop
+        break;
+      }
+    } //end for
 
     if (found_flag == 0) {
       // Didn't find any CP210x, exit
@@ -226,9 +223,6 @@ int main(int argc, char *argv[])
     // CP210x will be using the kernel driver by default, so we want to detach
     // when accessing directly with libusb and re-attach afterwards
     retval = libusb_set_auto_detach_kernel_driver(dev_handle, 1);
-    assert(retval == LIBUSB_SUCCESS);
-
-    retval = libusb_get_active_config_descriptor(dev, &cfg_desc);
     assert(retval == LIBUSB_SUCCESS);
 
     retval = libusb_claim_interface(dev_handle, interface_number);
