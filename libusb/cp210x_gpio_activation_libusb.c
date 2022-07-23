@@ -7,9 +7,6 @@ low bootloader activation pins in order to activate bootloader mode on an
 EFR32 target. The argument is the CP210x pin shift / position for each of the
 GPIOs, as well as the interface for the CP2105.
 
-Example, reset on GPIO0, btlact on GPIO1
-cp210x_gpio_activation_libusb --reset 0 --btlact 1
-
 ***************************************/
 /**************************************
 SPDX-License-Identifier: Zlib
@@ -76,6 +73,17 @@ static struct option long_options[] = {
      {"interface",  required_argument, 0,  'i' },
      {0,           0,                 0,  0  }};
 
+#define HELP_MESSAGE \
+"./exe/cp210x_gpio_activation_libusb --reset <cp210x_gpionum> --btlact <cp210x_gpionum> --interface <cp2105_interfacenum>\n"\
+"                                   \n"\
+"--reset       This supplies the number of the CP210x GPIO connected to nRESET of the EFR32.\n"           \
+"--btlact      This argument supplies the number of the CP210x GPIO connected to the active low bootloader\n"        \
+"                activation pin of the EFR32. Note this argument is optional - without it, the\n"         \
+"                application will assert reset on the target without activating the bootloader.\n"        \
+"--interface   Specifies the interface number for the USB request. This is only valid for CP2105, for\n"  \
+"                which the GPIOs are independent for each interface (ECI = interface 0, SCI = interface 1)\n" \
+"--help        Print help message\n"
+
 libusb_context* context = NULL;
 
 int main(int argc, char *argv[])
@@ -112,7 +120,8 @@ int main(int argc, char *argv[])
     switch (opt) {
       case 'h':
       //TODO
-        printf("add help message here!\n");
+        printf(HELP_MESSAGE);
+        exit(0);
       break;
 
       case 'b':
@@ -152,13 +161,15 @@ int main(int argc, char *argv[])
     // This is just a reset, so we'll allow this case
     printf("Resetting target only (without bootloader activation)\n");
   } else {
-    printf("Resetting target with bootloader activation\n");
+    // if btlact was specified, make sure it's not the same pin as reset
+    if (reset_pin_shift == btlact_pin_shift) {
+      printf("ERROR: reset pin and btlact pin mask cannot be the same value!\n");
+      exit(1);
+    } else {
+      printf("Resetting target with bootloader activation\n");
+    }
   }
 
-  if (reset_pin_shift == btlact_pin_shift) {
-    printf("ERROR: reset pin and btlact pin mask cannot be the same value!\n");
-    exit(1);
-  }
   retval = libusb_init(&context);
   if (retval< 0) {
     printf("ERROR: libusb init failure %s\n", libusb_error_name(retval));
@@ -191,22 +202,22 @@ int main(int argc, char *argv[])
       if (desc.idVendor == SILABS_VID) {
         switch (desc.idProduct) {
           case CP2105_PID:
-          printf("CP2105 detected, using interface %d.\n", interface_number);
-          found_flag = 1;
-          break;
+            printf("CP2105 detected, using interface %d.\n", interface_number);
+            found_flag = 1;
+            break;
 
           case CP2108_PID:
-          printf("CP2108 detected.\n");
-          found_flag = 1;
-          break;
+            printf("CP2108 detected.\n");
+            found_flag = 1;
+            break;
 
           case CP2102N_CP2103_CP2104_PID:
-          printf("CP2102, CP2103, or CP2104 detected.\n");
-          found_flag = 1;
-          break;
+            printf("CP2102, CP2103, or CP2104 detected.\n");
+            found_flag = 1;
+            break;
 
-        default:
-          break;
+          default:
+            break;
         }
       }
       if (found_flag == 1) {
@@ -226,6 +237,7 @@ int main(int argc, char *argv[])
     retval = libusb_open(dev, &dev_handle);
     if (retval != LIBUSB_SUCCESS) {
       printf("ERROR: libusb open failed: %s\n", libusb_error_name(retval));
+      libusb_exit(NULL);
       exit(1);
     }
 
@@ -241,6 +253,8 @@ int main(int argc, char *argv[])
     switch (desc.idProduct) {
 
       case CP2108_PID:
+        interface_number = 0; //ignore interface for CP2108 (use zero)
+
         // Write the reset pin low, also write the btlact pin low if set
         gpiobuf16.mask = RESET_PIN_MASK | BTLACT_PIN_MASK;
         gpiobuf16.state = 0x0000;
@@ -287,19 +301,10 @@ int main(int argc, char *argv[])
 
       case CP2105_PID:
         // NOTE that the interface number is important for the CP2105
-        // do a bit of bound checking here
-        if (reset_pin_shift > 1) {
-          printf("ERROR: reset pin 0x%2x out of range for CP2105\n",
-                  reset_pin_shift);
-          exit(1);
-        }
-        if (btlact_pin_shift > 1) {
-          printf("ERROR: btlact pin 0x%2x out of range for CP2105\n",
-                  btlact_pin_shift);
-          exit(1);
-        }
+
         // Write the reset pin low, also write the btlact pin low if set
-        gpiobuf8.mask = RESET_PIN_MASK | BTLACT_PIN_MASK;
+        // Using typecast to insure value fits in the byte
+        gpiobuf8.mask = (uint8_t) RESET_PIN_MASK | BTLACT_PIN_MASK;
         gpiobuf8.state = 0x00;
 
         retval = libusb_control_transfer(dev_handle,
@@ -313,7 +318,8 @@ int main(int argc, char *argv[])
         usleep(RESET_DELAY_US);
 
         // Write the reset high again, but don't touch the btlact pin
-        gpiobuf8.mask = RESET_PIN_MASK;
+        // Using typecast to insure value fits in the byte
+        gpiobuf8.mask = (uint8_t) RESET_PIN_MASK;
         gpiobuf8.state = 0xff;
         retval = libusb_control_transfer(dev_handle,
                                         REQTYPE_HOST_TO_INTERFACE,
@@ -328,7 +334,8 @@ int main(int argc, char *argv[])
         if (btlact_flag == 1) {
           usleep(BTLACT_DELAY_US);
           // Write btlact high if its being used
-          gpiobuf8.mask = BTLACT_PIN_MASK;
+          // Using typecast to insure value fits in the byte
+          gpiobuf8.mask = (uint8_t) BTLACT_PIN_MASK;
           gpiobuf8.state = 0xff;
           retval = libusb_control_transfer(dev_handle,
                                           REQTYPE_HOST_TO_INTERFACE,
@@ -344,8 +351,9 @@ int main(int argc, char *argv[])
 
       case CP2102N_CP2103_CP2104_PID:
         // Write the reset pin low, also write the btlact pin low if set
-        //TODO: CP2102N_CP2103_CP2104 bound checking
-        wIndex = (0x00 << 8) | BTLACT_PIN_MASK | RESET_PIN_MASK;
+        interface_number = 0; //ignore interface for CP2102N_CP2103_CP2104 (use zero)
+        // Using typecast to insure mask value fits in the byte
+        wIndex = (0x00 << 8) | (uint8_t) (BTLACT_PIN_MASK | RESET_PIN_MASK);
         retval = libusb_control_transfer(dev_handle,
                                           REQTYPE_HOST_TO_INTERFACE,
                                           bReq_VENDOR_SPECIFIC,
@@ -358,7 +366,8 @@ int main(int argc, char *argv[])
         usleep(RESET_DELAY_US);
 
         // Write the reset high again, but don't touch the btlact pin
-        wIndex = (0xff << 8) | RESET_PIN_MASK;
+        // Using typecast to insure value fits in the byte
+        wIndex = (0xff << 8) | (uint8_t) RESET_PIN_MASK;
         retval = libusb_control_transfer(dev_handle,
                                         REQTYPE_HOST_TO_INTERFACE,
                                         bReq_VENDOR_SPECIFIC,
@@ -371,7 +380,8 @@ int main(int argc, char *argv[])
         if (btlact_flag == 1) {
           usleep(BTLACT_DELAY_US);
           // Write btlact high if its being used
-          wIndex = (0xff << 8) | BTLACT_PIN_MASK;
+          // Using typecast to insure value fits in the byte
+          wIndex = (0xff << 8) | (uint8_t) BTLACT_PIN_MASK;
           retval = libusb_control_transfer(dev_handle,
                                           REQTYPE_HOST_TO_INTERFACE,
                                           bReq_VENDOR_SPECIFIC,

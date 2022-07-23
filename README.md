@@ -7,19 +7,11 @@ GPIO activation of the gecko bootloader is straightforward:
 2. Make sure the bootloader activation pin is asserted when de-asserting nRESET. In this case, we are making the bootloader activation pin active low (nBOOT), so this means making sure nBOOT is low when nRESET transitions from low to high.
 3. De-assert the bootloader activation pin. Note that this pin can be re-used for a different purpose in the application.
 
-## SW Prerequisites
-
-1. Python 3.x.
-2. xmodem python package
-3. pyserial python package
-4. pyusb python package
-5. A GBL upgrade file for your target device
-
 ## HW Prerequisites
 1. CP2105 or CP2102N (designed to work with other CP210x also, but only tested with these)
 2. EFR32/EFM32 with xmodem gecko bootloader flashed
-3. Connect GPIO.0 of the CP210x ports to nRESET. Note that it's difficult to connect to the target nRESET pin when using a radio board connected to the WSTK. For this reason, I recommend using the BRD8016A that comes with the [EXP4320A WGM110 Wi-Fi Expansion Kit](https://www.silabs.com/documents/public/user-guides/ug291-exp4320a-user-guide.pdf). You can install a radio board on this board and access pins via the 40 pin header (not installed by default). See below for an example pinout using BRD4158A as the target.
-4. Connect GPIO.1 to a pin configured in the gecko bootloader as an active low bootloader activation pin (which I am calling 'nBOOT').
+3. Connect one GPIO of the CP210x ports to nRESET. Note that it's difficult to connect to the target nRESET pin when using a radio board connected to the WSTK. For this reason, I recommend using the BRD8016A that comes with the [EXP4320A WGM110 Wi-Fi Expansion Kit](https://www.silabs.com/documents/public/user-guides/ug291-exp4320a-user-guide.pdf). You can install a radio board on this board and access pins via the 40 pin header (not installed by default). See below for an example pinout using BRD4158A as the target.
+4. Connect another CP210x GPIO to a pin configured in the gecko bootloader as an active low bootloader activation pin (i.e. nBOOT or "btlact").
 5. Connect the RX pin of the CP210x port to the TX pin of the target device.
 6. Connect the TX pin of the CP210x port to the RX pin of the target device.
 
@@ -27,7 +19,7 @@ Here's an example schematic showing a CP210x with the recommended connections.
 
 ![schematic showing CP210x with recommended bootloader activation connections](images/cp210x_bootloader_activation_hw_block_diagram.png)
 
-Note that the resistors are recommended for a robust production design but not needed to run it as a demo as the CP2105 has weak internal pullups on its GPIO pins. Also note that HW flow control is not really needed for reliable xmodem transfer, since xmodem implements its own flow control protocol. However, HW flow control is always recommended when using UARTs for Silicon Labs NCP (Network Co-processor) interfaces.
+Note that the resistors are recommended for a robust production design but not needed to run it as a demo as the CP210x has weak internal pullups on its GPIO pins. Also note that HW flow control is not really needed for reliable xmodem transfer, since xmodem implements its own flow control protocol. However, HW flow control is always recommended when using UARTs for Silicon Labs NCP (Network Co-processor) interfaces.
 
 Here's my pinout using a BRD4158A installed on a BRD8016A:
 
@@ -40,6 +32,9 @@ Here's my pinout using a BRD4158A installed on a BRD8016A:
 
 ## Installing and Running on Raspberry Pi Using Python
 
+The Python3 implementation here is hard coded for GPIO.0 = reset and GPIO.1 = active low bootloader activation. But it's easily modifiable for different pins.
+
+Instructions are as follows:
 1. Clone the repo.
 
 ```
@@ -64,7 +59,7 @@ $ sudo udevadm control --reload-rules
 $ sudo udevadm trigger
 ```
 
-4. To update the device on the CP2105 SCI port (COM port /dev/ttyUSB0, USB interface \#0):
+4. To update the device on the CP2105 ECI port (COM port /dev/ttyUSB0, USB interface \#0):
 ```
 $ python3 cp210x_xmodem_activation.py flash -p /dev/ttyUSB0 -i 0 -f soc_empty.gbl
 Restarting NCP into Bootloader mode...
@@ -76,7 +71,7 @@ Finished!
 Rebooting NCP...
 ```
 
-5. To update the device on the CP2105 ECI port (COM port /dev/ttyUSB1, USB interface \#1):
+5. To update the device on the CP2105 SCI port (COM port /dev/ttyUSB1, USB interface \#1):
 ```
 $ python3 cp210x_xmodem_activation.py flash -p /dev/ttyUSB1 -i 1 -f soc_empty.gbl
 Restarting NCP into Bootloader mode...
@@ -128,7 +123,7 @@ gpiochip1 [brcmvirt-gpio] (2 lines)
 gpiochip2 [raspberrypi-exp-gpio] (8 lines)
 gpiochip3 [cp210x] (16 lines)
 ```
-4. Run the [reset_target_gpiod.sh](reset_target_gpiod.sh) example script to activate bootloader mode on the target using the CP210x GPIOs. The first argument in the script is the "gpiochip" device corresponding to the CP210x, the second argument is the CP210x number of the bootloader activation pin, the third argument is the CP210x GPIO number of the nRESET pin, and the final (optional) argument is "-btl_act" which is required for bootloader activation. For example, taking the suggested pins from this README (GPIO.0 = nRST, GPIO.1=bootloader activation), and taking the output of gpiodetect ("gpiochip3" here):
+4. Run the [reset_target_gpiod.sh](reset_target_gpiod.sh) example script from this repo to activate bootloader mode on the target using the CP210x GPIOs. The first argument in the script is the "gpiochip" device corresponding to the CP210x, the second argument is the CP210x number of the bootloader activation pin, the third argument is the CP210x GPIO number of the nRESET pin, and the final (optional) argument is "-btl_act" which is required for bootloader activation. For example, taking the suggested pins from this README (GPIO.0 = nRST, GPIO.1=bootloader activation), and taking the output of gpiodetect ("gpiochip3" here):
 ```
 $ ./reset_target_gpiod.sh gpiochip3 1 0 -btl_act
 ```
@@ -137,9 +132,43 @@ $ ./reset_target_gpiod.sh gpiochip3 1 0 -btl_act
 $ ./xmodem_bootload.sh /dev/ttyUSB0 newapplication.gbl
 ```
 
+## Installing and Running on Raspberry Pi Using libusb
+An alternate implementation uses libusb 1.0 to bypass the Linux kernel driver and send the USB requests directly to the device to manipulate the GPIO. This avoids the complexities of dealing with kernel drivers and python (which could be useful in some systems). An example implementation is provided in the /libusb folder of this repo.
+
+1. Install libusb 1.0:
+   ```
+   sudo apt-get install libusb-1.0
+   ```
+
+2. cd to /libusb in the repo and execute "make". Note there's also a "make debug" option that enables copious amounts of debug logging.
+
+3. The resulting executable takes care of exercising the reset and bootloader activation pins of the target in order to initiate bootloader mode. It does not take care of physically performing the bootload. The usage is:
+
+./exe/cp210x_gpio_activation_libusb --reset <cp210x_gpionum> --btlact <cp210x_gpionum> --interface <cp2105_interfacenum>
+
+* --reset       This supplies the number of the CP210x GPIO connected to nRESET of the EFR32.
+* --btlact      This argument supplies the number of the CP210x GPIO connected to the active low bootloader
+                activation pin of the EFR32. Note this argument is optional - without it, the
+                application will assert reset on the target without activating the bootloader.
+* --interface   Specifies the interface number for the USB request. This is only valid for CP2105, for
+                which the GPIOs are independent for each interface (ECI = interface 0, SCI = interface 1)
+* --help        Print help message
+
+NOTE: This application assumes the bootloader activation polarity is ACTIVE LOW (which is compatible with the default
+  high state of the CP210x GPIOs).
+
+Examples:
+* Activate the bootloader on a CP2108 with the EFR32 nRESET connected to GPIO.0 and the EFR32 bootloader active pin connected to GPIO.1.
+```
+./exe/cp210x_gpio_activation_libusb --reset 0 --btlact 1
+```
+* Reset an EFR32 target with the EFR32 nRESET connected to a CP2105, SCI GPIO.1.
+```
+./exe/cp210x_gpio_activation_libusb --reset 1 --interface 1
+```
+
 ## References
 [AN571 - CP210x Virtual COM Port Interface](https://www.silabs.com/documents/public/application-notes/AN571.pdf)
-
 
 ## Reporting Bugs/Issues and Posting Questions and Comments
 
