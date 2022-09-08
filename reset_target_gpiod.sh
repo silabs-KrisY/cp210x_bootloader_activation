@@ -51,8 +51,8 @@ gpioset $gpiod_dev $nrst_pin=1
 
 if [ "$4" = "-btl_act" ]; then
   #Sleep for a short time then de-assert btl_act
-  #wait for 30ms
-  sleep 0.03
+  #wait for 50ms
+  sleep 0.05
   #btl_act high
   gpioset $gpiod_dev $btl_act_pin=1
 fi

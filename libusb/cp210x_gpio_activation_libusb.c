@@ -64,7 +64,7 @@ freely, subject to the following restrictions:
 #define OPTSTRING      "hbri"
 
 #define RESET_DELAY_US 5000 //5ms
-#define BTLACT_DELAY_US 30000 //30ms
+#define BTLACT_DELAY_US 50000 //50ms
 
 static struct option long_options[] = {
      {"help",       no_argument,       0,  'h' },

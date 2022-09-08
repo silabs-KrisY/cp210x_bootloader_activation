@@ -5,7 +5,8 @@ This repo provides information on using the GPIO of a CP210x usb-to-serial conve
 GPIO activation of the gecko bootloader is straightforward:
 1. Assert reset (drive nRESET low).
 2. Make sure the bootloader activation pin is asserted when de-asserting nRESET. In this case, we are making the bootloader activation pin active low (nBOOT), so this means making sure nBOOT is low when nRESET transitions from low to high.
-3. De-assert the bootloader activation pin. Note that this pin can be re-used for a different purpose in the application.
+3. Wait long enough for the bootloader to recognize the bootloader activation pin state. 50ms or more is recommended to insure activation.
+4. De-assert the bootloader activation pin. Note that this pin can be re-used for a different purpose in the application.
 
 ## HW Prerequisites
 1. CP2105 or CP2102N (designed to work with other CP210x also, but only tested with these)
