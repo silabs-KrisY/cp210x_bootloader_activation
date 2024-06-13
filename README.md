@@ -50,7 +50,12 @@ $ pip3 install pyusb --user
 $ pip3 install xmodem --user
 ```
 
-3. Note that by default, all users don't have direct access to USB devices. We can provide all users with access to CP210x devices by adding the following line to the beginning of /etc/udev/rules.d/99-com.rules:
+3. Make sure the lrzsz package is installed, which provides the ability to perform an xmodem transfer from the command line.
+```
+sudo apt install lrzsz
+```
+
+4. Note that by default, all users don't have direct access to USB devices. We can provide all users with access to CP210x devices by adding the following line to the beginning of /etc/udev/rules.d/99-com.rules:
 ```
 SUBSYSTEM=="usb",ATTRS{idVendor}=="10c4",MODE="0666"
 ```
@@ -60,7 +65,7 @@ $ sudo udevadm control --reload-rules
 $ sudo udevadm trigger
 ```
 
-4. To update the device on the CP2105 ECI port (COM port /dev/ttyUSB0, USB interface \#0):
+5. To update the device on the CP2105 ECI port (COM port /dev/ttyUSB0, USB interface \#0):
 ```
 $ python3 cp210x_xmodem_activation.py flash -p /dev/ttyUSB0 -i 0 -f soc_empty.gbl
 Restarting NCP into Bootloader mode...
@@ -72,7 +77,7 @@ Finished!
 Rebooting NCP...
 ```
 
-5. To update the device on the CP2105 SCI port (COM port /dev/ttyUSB1, USB interface \#1):
+6. To update the device on the CP2105 SCI port (COM port /dev/ttyUSB1, USB interface \#1):
 ```
 $ python3 cp210x_xmodem_activation.py flash -p /dev/ttyUSB1 -i 1 -f soc_empty.gbl
 Restarting NCP into Bootloader mode...
@@ -84,7 +89,7 @@ Finished!
 Rebooting NCP...
 ```
 
-5. To update the device on a CP2102N port (COM port /dev/ttyUSB0):
+7. To update the device on a CP2102N port (COM port /dev/ttyUSB0):
 ```
 $ python3 cp210x_xmodem_activation.py flash -p /dev/ttyUSB0 -f soc_empty.gbl
 Restarting NCP into Bootloader mode...
@@ -96,7 +101,7 @@ Finished!
 Rebooting NCP...
 ```
 
-6. To scan for CP210x ports:
+8. To scan for CP210x ports:
 ```
 $ python3 cp210x_xmodem_activation.py scan
 /dev/ttyUSB1
@@ -116,7 +121,11 @@ $ cat /proc/version
 Linux version 5.15.32-v7+ (dom@buildbot) (arm-linux-gnueabihf-gcc-8 (Ubuntu/Linaro 8.4.0-3ubuntu1) 8.4.0, GNU ld (GNU Binutils for Ubuntu) 2.34) #1538 SMP Thu Mar 31 19:38:48 BST 2022
 ```
 2. Install gpiod via "sudo apt install gpiod". I recommend rebooting after install.
-3. Connect your CP210x to the Raspberry Pi USB port and check for the cp210x GPIO support. The following example is for a CP2108 which has 16 gpios:
+3. Make sure the lrzsz package is installed, which provides the ability to perform an xmodem transfer from the command line.
+```
+sudo apt install lrzsz
+```
+4. Connect your CP210x to the Raspberry Pi USB port and check for the cp210x GPIO support. The following example is for a CP2108 which has 16 gpios:
 ```
 $ gpiodetect
 gpiochip0 [pinctrl-bcm2835] (54 lines)
@@ -124,11 +133,11 @@ gpiochip1 [brcmvirt-gpio] (2 lines)
 gpiochip2 [raspberrypi-exp-gpio] (8 lines)
 gpiochip3 [cp210x] (16 lines)
 ```
-4. Run the [reset_target_gpiod.sh](reset_target_gpiod.sh) example script from this repo to activate bootloader mode on the target using the CP210x GPIOs. The first argument in the script is the "gpiochip" device corresponding to the CP210x, the second argument is the CP210x number of the bootloader activation pin, the third argument is the CP210x GPIO number of the nRESET pin, and the final (optional) argument is "-btl_act" which is required for bootloader activation. For example, taking the suggested pins from this README (GPIO.0 = nRST, GPIO.1=bootloader activation), and taking the output of gpiodetect ("gpiochip3" here):
+5. Run the [reset_target_gpiod.sh](reset_target_gpiod.sh) example script from this repo to activate bootloader mode on the target using the CP210x GPIOs. The first argument in the script is the "gpiochip" device corresponding to the CP210x, the second argument is the CP210x number of the bootloader activation pin, the third argument is the CP210x GPIO number of the nRESET pin, and the final (optional) argument is "-btl_act" which is required for bootloader activation. For example, taking the suggested pins from this README (GPIO.0 = nRST, GPIO.1=bootloader activation), and taking the output of gpiodetect ("gpiochip3" here):
 ```
 $ ./reset_target_gpiod.sh gpiochip3 1 0 -btl_act
 ```
-5. Now the target should be in bootloader mode, so you can just run the [xmodem_bootload.sh](xmodem_bootload.sh) example script to upload the GBL file via xmodem transfer (115200, 8N1, no flow control):
+6. Now the target should be in bootloader mode, so you can just run the [xmodem_bootload.sh](xmodem_bootload.sh) example script to upload the GBL file via xmodem transfer (115200, 8N1, no flow control):
 ```
 $ ./xmodem_bootload.sh /dev/ttyUSB0 newapplication.gbl
 ```
@@ -140,10 +149,13 @@ An alternate implementation uses libusb 1.0 to bypass the Linux kernel driver an
    ```
    sudo apt-get install libusb-1.0
    ```
+2. Make sure the lrzsz package is installed, which provides the ability to perform an xmodem transfer from the command line.
+```
+sudo apt install lrzsz
+```
+3. cd to /libusb in the repo and execute "make". Note there's also a "make debug" option that enables copious amounts of debug logging.
 
-2. cd to /libusb in the repo and execute "make". Note there's also a "make debug" option that enables copious amounts of debug logging.
-
-3. The resulting executable takes care of exercising the reset and bootloader activation pins of the target in order to initiate bootloader mode. It does not take care of physically performing the bootload. The usage is:
+4. The resulting executable takes care of exercising the reset and bootloader activation pins of the target in order to initiate bootloader mode. It does not take care of physically performing the bootload. The usage is:
 
 ./exe/cp210x_gpio_activation_libusb --reset <cp210x_gpionum> --btlact <cp210x_gpionum> --interface <cp2105_interfacenum>
 
