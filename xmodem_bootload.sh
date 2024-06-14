@@ -29,8 +29,14 @@ stty -F $1 115200 cs8 -cstopb -parenb -crtscts -ixoff
 
 # send "\n" to kick the bootloader prompt, send "1" to start xmodem receive on
 # the bootloaders
-echo -e "\n" > $1
-echo -e "1" > $1
+printf '%b' "\n" > $1
+printf '%b'  "1" > $1
+
+# Brief delay to allow bootloader to finish sending console prompt
+sleep 0.5
 
 # Perform the bootloader transfer using the linux lrzsz utility
 sx $2 < $1 > $1
+
+# Send the command to run (required if a bootloader or SE upgrade was transmitted)
+printf '%b' "2" > $1
